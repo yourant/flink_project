@@ -1,0 +1,13 @@
+.project
+target/
+.settings/
+.classpath
+*.iml
+*.iws
+*.ipr
+.idea/
+.DS_Store
+*.log
+logs/
+loggingRoot_IS_UNDEFINED/
+velocity.log*
