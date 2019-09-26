@@ -5,16 +5,22 @@ import cn.hutool.http.HttpUtil;
 import com.globalegrow.tianchi.bean.AppDataModel;
 import com.globalegrow.tianchi.bean.Tokenizer;
 import com.globalegrow.tianchi.util.HDFSUtils;
-import lombok.val;
+import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.orc.OrcTableSource;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
+import org.apache.flink.table.api.java.BatchTableEnvironment;
+import org.apache.flink.table.api.java.StreamTableEnvironment;
+import org.apache.flink.table.sinks.CsvTableSink;
+import org.apache.flink.table.sinks.TableSink;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.flink.api.common.*;
 import cn.hutool.core.thread.ThreadUtil;
 
 import java.io.BufferedReader;
@@ -28,10 +34,14 @@ import java.util.Map;
  * @author zhougenggeng createTime  2019/9/26
  */
 public class Hive2hive {
-    public static void main(String[] args) {
-        StreamExecutionEnvironment see = StreamExecutionEnvironment.getExecutionEnvironment();
+    public static void main(String[] args) throws Exception {
+        //StreamExecutionEnvironment see = StreamExecutionEnvironment.getExecutionEnvironment();
         ParameterTool parameterTool = ParameterTool.fromArgs(args);
-        see.setParallelism(parameterTool.getInt("job.parallelism", 1));
+        //see.setParallelism(parameterTool.getInt("job.parallelism", 1));
+        ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+
+        env.setParallelism(parameterTool.getInt("job.parallelism", 1));
+        env.getConfig().setGlobalJobParameters(parameterTool);
         ////获取时间
         //SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
         //Calendar c = Calendar.getInstance();
@@ -100,7 +110,6 @@ public class Hive2hive {
         String defaultFS = "hdfs://" + hdfsActive + "/";
         String inputFliePath = "hdfs://" + hdfsActive + "/bigdata/ods/log_clean/ods_app_burial_log/" + yesterdayYear
             + "/" + yesterdayMonth + "/" + yesterday + "/";
-        see.readTextFile(inputFliePath);
         String checkUrl = "/bigdata/log_clean/job/done_flag/" + today;
         if (parameterTool.has("checkUrl")) {
             checkUrl = parameterTool.get("checkUrl");
@@ -122,7 +131,6 @@ public class Hive2hive {
             "where event_name in('af_sku_view','af_view_product','af_add_to_bag','af_add_to_wishlist','af_create_order_success','af_search','af_purchase') " +
             "and lower(app_name) like '%gearbest%' ";
         String outputtFliePath = "hdfs:///user/hadoop/flink/gb/goods/wash/"+yesterdayYear+"/"+yesterdayMonth+"/"+yesterday+"/detail.csv";
-        EnvironmentSettings bsSettings  = EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build();
 
         if (parameterTool.has("defaultFS")) {
             defaultFS = parameterTool.get("defaultFS");
@@ -138,9 +146,12 @@ public class Hive2hive {
         }
 
 
-
-        TableEnvironment tableEnv = TableEnvironment.create(bsSettings);
+        //EnvironmentSettings bsSettings  = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
+        //StreamTableEnvironment tableEnv = StreamTableEnvironment.create(see, bsSettings);
+        //EnvironmentSettings btSettings  = EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build();
+        BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env);
         Configuration config = new Configuration();
+
         config.set("fs.defaultFS", defaultFS);
         OrcTableSource orcTableSource = OrcTableSource.builder()
             .path(inputFliePath)
@@ -149,10 +160,13 @@ public class Hive2hive {
             .build();
         tableEnv.registerTableSource("goods_event", orcTableSource);
         Table table = tableEnv.sqlQuery(querySql);
-        //TableSink csvSink = new CsvTableSink(outputtFliePath,",",1, FileSystem.WriteMode.OVERWRITE);
-        Table fetch = table.fetch(2);
-        System.out.println(fetch.toString());
+        DataSet<AppDataModel> dataStream = tableEnv.toDataSet(table, AppDataModel.class);
+        DataSet<String> stringDataStream= dataStream.flatMap(new Tokenizer());
 
+        Table table1 = tableEnv.fromDataSet(stringDataStream);
+        TableSink csvSink = new CsvTableSink(outputtFliePath,",",1, FileSystem.WriteMode.OVERWRITE);
+        table1.insertInto(outputtFliePath);
+        env.execute(parameterTool.get("job-name","dy-gb-goods-wash-"+yesterdayYear+"-"+yesterdayMonth+"-"+yesterday));
 
         String runningShellFile="dy-gb-goods-wash.sh";
         String shellFileDir="/usr/local/services/hive";
