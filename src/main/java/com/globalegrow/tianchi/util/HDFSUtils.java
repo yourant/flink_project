@@ -23,8 +23,7 @@ public class HDFSUtils {
      *
      * @return
      */
-    public static String getActiveNode() {
-        Configuration hadoopConf = new Configuration();
+    public static String getActiveNode(Configuration hadoopConf) {
         String activeNode = "";
         try {
             FileSystem fs = FileSystem.get(hadoopConf);

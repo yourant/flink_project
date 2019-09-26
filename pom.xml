@@ -19,6 +19,7 @@
         <log4j.version>1.2.17</log4j.version>
         <elasticsearch.version>5.6.4</elasticsearch.version>
         <lombok.version>1.18.8</lombok.version>
+        <hutool.version>4.4.0</hutool.version>
     </properties>
     <dependencies>
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-java -->
@@ -81,7 +82,13 @@
             <version>${flink.version}</version>
 <!--            <scope>provided</scope>-->
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-table</artifactId>
+            <version>${flink.version}</version>
+            <type>pom</type>
+<!--            <scope>provided</scope>-->
+        </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-jdbc_2.11</artifactId>
@@ -249,6 +256,11 @@
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>
 <!--            <scope>provided</scope>-->
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
         </dependency>
     </dependencies>
     <build>
