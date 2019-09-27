@@ -29,10 +29,10 @@ public class BatchWordCount {
                 // group by the tuple field "0" and sum up tuple field "1"
                 .groupBy(0)
                 .sum(1);
-        counts.print();
-        //System.out.println(counts);
-        //counts.writeAsCsv(outPath, "\n", " ");
 
+        //System.out.println(counts);
+        counts.writeAsCsv(outPath, "\n", " ").setParallelism(1);
+         env.execute("bathwordcount");
     }
     public static class Tokenizer implements FlatMapFunction<String, Tuple2<String, Integer>> {
 
@@ -51,7 +51,5 @@ public class BatchWordCount {
     }
 
 }
-/**
- * 主要为了存储单词以及单词出现的次数
- */
+
 
