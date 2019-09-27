@@ -146,9 +146,6 @@ public class Hive2hive {
         }
 
 
-        //EnvironmentSettings bsSettings  = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
-        //StreamTableEnvironment tableEnv = StreamTableEnvironment.create(see, bsSettings);
-        //EnvironmentSettings btSettings  = EnvironmentSettings.newInstance().useBlinkPlanner().inBatchMode().build();
         BatchTableEnvironment tableEnv = BatchTableEnvironment.create(env);
         Configuration config = new Configuration();
 
@@ -165,6 +162,7 @@ public class Hive2hive {
 
         Table table1 = tableEnv.fromDataSet(stringDataStream);
         TableSink csvSink = new CsvTableSink(outputtFliePath,",",1, FileSystem.WriteMode.OVERWRITE);
+        tableEnv.registerTableSink("csvSink",csvSink);
         table1.insertInto(outputtFliePath);
         env.execute(parameterTool.get("job-name","dy-gb-goods-wash-"+yesterdayYear+"-"+yesterdayMonth+"-"+yesterday));
 
