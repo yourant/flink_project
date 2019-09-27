@@ -17,10 +17,10 @@ public class BatchWordCount {
         //StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-        //String inputPath = args[0];
-        String inputPath = "d:/tmp/hello.txt";
-        //String outPath = args[1];
-        String outPath = "d:/tmp/helloout.txt";
+        String inputPath = args[0];
+        //String inputPath = "d:/tmp/hello.txt";
+        String outPath = args[1];
+        //String outPath = "d:/tmp/helloout.txt";
 
         DataSource<String> text = env.readTextFile(inputPath);
         DataSet<Tuple2<String, Integer>> counts =
