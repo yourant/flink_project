@@ -35,7 +35,7 @@ public class FTPUtil {
     private static final String FTP_PASSWORD = "3gF4vD89GGG";
 
     /** FTP基础目录 **/
-    private static final String BASE_PATH = "ftp/var/ftp/pub";
+    private static final String BASE_PATH = "/var/ftp/pub/";
 
     /** 本地字符编码  **/
     private static String localCharset = "GBK";
@@ -72,6 +72,7 @@ public class FTPUtil {
             FileInputStream fis = null;
             try {
                 fis = new FileInputStream(file);
+                System.out.println(file);
                 ftpClient.setBufferSize(BUFFER_SIZE);
                 // 设置编码：开启服务器对UTF-8的支持，如果服务器支持就用UTF-8编码，否则就使用本地编码（GBK）
                 if (FTPReply.isPositiveCompletion(ftpClient.sendCommand(OPTS_UTF8, "ON"))) {
