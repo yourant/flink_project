@@ -7,6 +7,7 @@ import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.operators.DataSource;
 import org.apache.flink.api.java.tuple.Tuple2;
 
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.util.Collector;
 
 /**
@@ -15,24 +16,38 @@ import org.apache.flink.util.Collector;
 public class BatchWordCount {
     public static void main(String[] args) throws Exception {
         //StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
+        ParameterTool params = ParameterTool.fromArgs(args);
         ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-        String inputPath = args[0];
+        DataSet<String> text;
+        if (params.has("input")) {
+            // read the text file from given input path
+            text = env.readTextFile(params.get("input"));
+        } else {
+            // get default test text data
+            System.out.println("Executing WordCount example with default input data set.");
+            System.out.println("Use --input to specify file input.");
+            text = WordCountData.getDefaultTextLineDataSet(env);
+        }
+
         //String inputPath = "d:/tmp/hello.txt";
-        String outPath = args[1];
+        //String outPath = args[1];
         //String outPath = "d:/tmp/helloout.txt";
 
-        DataSource<String> text = env.readTextFile(inputPath);
+
         DataSet<Tuple2<String, Integer>> counts =
             // split up the lines in pairs (2-tuples) containing: (word,1)
             text.flatMap(new Tokenizer())
                 // group by the tuple field "0" and sum up tuple field "1"
                 .groupBy(0)
                 .sum(1);
-
-        //System.out.println(counts);
-        counts.writeAsCsv(outPath, "\n", " ").setParallelism(1);
-         env.execute("bathwordcount");
+        if (params.has("output")) {
+            counts.writeAsCsv(params.get("output"), "\n", " ").setParallelism(1);
+            // execute program
+            env.execute("WordCount Example");
+        } else {
+            System.out.println("Printing result to stdout. Use --output to specify output path.");
+            counts.print();
+        }
     }
     public static class Tokenizer implements FlatMapFunction<String, Tuple2<String, Integer>> {
 
