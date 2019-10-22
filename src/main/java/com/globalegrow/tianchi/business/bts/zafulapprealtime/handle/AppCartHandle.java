@@ -29,7 +29,7 @@ public class AppCartHandle {
     public static final long DEFAULT_CACHE_SECONDS = 1209600;
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         ParameterTool parameterTool = ParameterTool.fromArgs(args);
         StreamExecutionEnvironment see = StreamExecutionEnvironment.getExecutionEnvironment();
         see.enableCheckpointing(5000);
@@ -122,5 +122,6 @@ public class AppCartHandle {
 
             }
         }).uid("bts_af_add_to_bag_handle_source_" + appNameFilter ).returns(AppCartRedisCacheObj.class);
+        see.execute(parameterTool.get("job-name", "bts_af_add_to_bag_handle") + System.currentTimeMillis());
     }
 }

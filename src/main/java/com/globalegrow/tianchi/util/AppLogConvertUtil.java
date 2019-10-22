@@ -31,7 +31,6 @@ public class AppLogConvertUtil {
      * @return
      */
     public static Map<String, Object> getAppLogParameters(String log) {
-        if (log.contains("/_app.gif")) {
             Pattern p = Pattern.compile(PARAMETERS_PATTERN);
             Matcher m = null;
             try {
@@ -86,7 +85,6 @@ public class AppLogConvertUtil {
                 return result;
             }
 
-        }
         return null;
     }
 
