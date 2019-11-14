@@ -22,6 +22,7 @@ import org.apache.flink.api.java.tuple.*;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
@@ -32,6 +33,7 @@ import org.apache.flink.streaming.connectors.elasticsearch.RequestIndexer;
 import org.apache.flink.streaming.connectors.elasticsearch5.ElasticsearchSink;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
 
@@ -77,14 +79,13 @@ public class ZafulPcSkuEventTargetAppVtwo {
         //获取kafka数据
         DataStreamSource<String> streamPHPData = env.addSource(phpKafkaSource);
 
-//        DataStreamSource<String> streamPCData = env.readTextFile("file:///E:\\tmp\\flink\\input\\pc_log.txt");
-//
-//        DataStreamSource<String> streamPHPData = env.readTextFile("file:///E:\\tmp\\flink\\input\\php_log.txt");
+        OutputTag<PcEventBehahvior> lateDataTag = new OutputTag<PcEventBehahvior>("late"){};
 
         //统计各个指标
-        DataStream<PCTargetResultCount> resultStream = targetCount(streamPCData, streamPHPData);
+        SingleOutputStreamOperator<PCTargetResultCount> resultStream = targetCount(streamPCData, streamPHPData,lateDataTag);
 
-        resultStream.print();
+        //存放延迟数据
+        DataStream<PcEventBehahvior> lateData = resultStream.getSideOutput(lateDataTag);
 
         //将统计结果sink到ES
         Map<String, String> config = new HashMap<>();
@@ -118,9 +119,28 @@ public class ZafulPcSkuEventTargetAppVtwo {
                     }
                 }));
 
+        lateData.addSink(new ElasticsearchSink(config, transportAddresses,
+                new ElasticsearchSinkFunction<PcEventBehahvior>() {
+                    public IndexRequest createIndexRequest(PcEventBehahvior element) {
+                        Map<String, Object> json = new HashMap<>();
+                        json.put("event_type", element.getEventType());
+                        json.put("event_value", element.getSku());
+                        json.put("time_stamp", element.getTimeStamp());
+                        json.put("platform", element.getPlatform());
+                        json.put("country", element.getCountryCode().toUpperCase());
+
+                        return Requests.indexRequest().index("zaful_target_late_event_realtime")
+                                .type("ai-zaful-pc-target").source(json);
+                    }
+
+                    @Override
+                    public void process(PcEventBehahvior element, RuntimeContext ctx, RequestIndexer indexer) {
+                        indexer.add(createIndexRequest(element));
+                    }
+                }));
+
         env.execute("ZafulPcSkuEventTargetAppVtwo");
     }
-
 
     /**
      * 计数统计
@@ -128,8 +148,9 @@ public class ZafulPcSkuEventTargetAppVtwo {
      * @param streamPHPData
      * @return
      */
-    public static DataStream<PCTargetResultCount> targetCount(DataStreamSource<String> streamPCData,
-                                                       DataStreamSource<String> streamPHPData){
+    public static SingleOutputStreamOperator<PCTargetResultCount> targetCount(DataStreamSource<String> streamPCData,
+                                                                              DataStreamSource<String> streamPHPData,
+                                                                              OutputTag<PcEventBehahvior> lateDataTag){
         //处理zaful pc端数据
         DataStream<PcEventBehahvior> pcResultStream = streamPCData
                 .map(new MapFunction<String, PCLogModel>() { //解析kafka json字符串为PCLogModel对象
@@ -150,20 +171,20 @@ public class ZafulPcSkuEventTargetAppVtwo {
                 .flatMap(new PhpTargetFlatMapFunction());
 
         //合并Stream并进行聚合操作
-        DataStream<PCTargetResultCount> resultStream = pcResultStream.union(phpResultStream)
+        SingleOutputStreamOperator<PCTargetResultCount> resultStream = pcResultStream.union(phpResultStream)
                 //抽取时间和生成watermark
                 .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<PcEventBehahvior>() {
                     @Override
                     public long extractAscendingTimestamp(PcEventBehahvior element) {
-                        return element.getTimeStamp();
+                        return element.getTimeStamp() * 1000;
                     }
                 })
                 .keyBy("eventType","sku","platform","countryCode")
                 .timeWindow(Time.minutes(60))
-//                .allowedLateness(Time.seconds(10))
+                .allowedLateness(Time.seconds(10))
+                .sideOutputLateData(lateDataTag)
                 .aggregate(new CountAgg(), new WindowResultFunction());
 
-        resultStream.print();
         return resultStream;
     }
 
@@ -183,8 +204,7 @@ public class ZafulPcSkuEventTargetAppVtwo {
 
             String sku = ((Tuple4<String,String,String,String>) tuple).f1;
 
-            String timeStamp = DateUtil.timeStamp2DateStr(String.valueOf(window.getEnd()*1000), "yyyyMMddHH");
-//            System.out.println(window.getEnd());
+            String timeStamp = DateUtil.timeStamp2DateStr(String.valueOf(window.getEnd()), "yyyyMMddHH");
 
             String platform = ((Tuple4<String,String,String,String>) tuple).f2;
 

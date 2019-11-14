@@ -98,11 +98,12 @@ public class ZafulPcUserSkuExpiresStreamApp {
                 .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<ZafulPcSkuBehavior>() {
                     @Override
                     public long extractAscendingTimestamp(ZafulPcSkuBehavior element) {
-                        return element.getTimeStamp();
+                        return element.getTimeStamp() * 1000;
                     }
                 })
                 .keyBy("cookieId","sku")
                 .timeWindow(Time.minutes(30))
+                .allowedLateness(Time.seconds(10))
                 .aggregate(new CountAgg(), new WindowResultFunction());
 
         pcResultStream.print();
@@ -161,7 +162,7 @@ public class ZafulPcUserSkuExpiresStreamApp {
 
             long viewCount = input.iterator().next();
 
-            out.collect(new ZafulPcFeedBackCount(eventType, sku, window.getEnd()*1000, viewCount));
+            out.collect(new ZafulPcFeedBackCount(eventType, sku, window.getEnd(), viewCount));
 
         }
     }

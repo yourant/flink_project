@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.globalegrow</groupId>
     <artifactId>flink_project</artifactId>
-    <version>1.0-WXH-20</version>
+    <version>1.0-WXH-23</version>
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>

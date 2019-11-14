@@ -68,8 +68,6 @@ public class ZafulPhpOrderGmvStreamApp {
         //获取kafka数据
         DataStreamSource<String> streamPHPData = env.addSource(phpKafkaSource);
 
-//        DataStreamSource<String> streamPHPData = env.readTextFile("file:///E:\\tmp\\flink\\input\\php_log.txt");
-
         //处理php数据
         DataStream<PhpOrderSum> phpResultStream = streamPHPData
                 .filter(new PHPFilterFunction())
@@ -77,7 +75,7 @@ public class ZafulPhpOrderGmvStreamApp {
                 .assignTimestampsAndWatermarks(new AscendingTimestampExtractor<PhpOrderBehavior>() {
                     @Override
                     public long extractAscendingTimestamp(PhpOrderBehavior element) {
-                        return element.getTimeStamp();
+                        return element.getTimeStamp() * 1000;
                     }
                 })
                 .map(new MapFunction<PhpOrderBehavior, PhpOrderSum>() {
@@ -89,10 +87,8 @@ public class ZafulPhpOrderGmvStreamApp {
                 })
                 .keyBy("eventType","sku","platform")
                 .timeWindow(Time.minutes(60))
-//                .allowedLateness(Time.seconds(10))
+                .allowedLateness(Time.seconds(10))
                 .reduce(new SumGmv(), new WindowRumResultFunction());
-
-        phpResultStream.print();
 
         //将统计结果sink到ES
         Map<String, String> config = new HashMap<>();
@@ -137,8 +133,7 @@ public class ZafulPhpOrderGmvStreamApp {
 
             String sku = ((Tuple3<String,String,String>) tuple).f1;
 
-            String timeStamp = DateUtil.timeStamp2DateStr(String.valueOf(window.getEnd()*1000), "yyyyMMddHH");
-//            System.out.println(window.getEnd());
+            String timeStamp = DateUtil.timeStamp2DateStr(String.valueOf(window.getEnd()), "yyyyMMddHH");
 
             String platform = ((Tuple3<String,String,String>) tuple).f2;
 
@@ -147,7 +142,6 @@ public class ZafulPhpOrderGmvStreamApp {
             out.collect(new PhpOrderSum(eventType,sku,gmv,timeStamp,platform));
         }
     }
-
 
     public static class SumGmv implements ReduceFunction<PhpOrderSum>{
         @Override

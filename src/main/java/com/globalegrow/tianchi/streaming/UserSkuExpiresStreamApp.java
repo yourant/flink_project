@@ -231,8 +231,17 @@ public class UserSkuExpiresStreamApp {
                         json.put("time_stamp", Long.valueOf(element.f4));
                         json.put("negative_feedback", element.f5);
 
-                        return Requests.indexRequest().index("zaful"+"_"+"impress"+"_"+element.f2+"_event_realtime")
-                                .type("ai-zaful-pc-impress").routing(element.f0).source(json);
+                        IndexRequest index =  null;
+
+                        if (element.f2.equals("expose")){
+                            index =  Requests.indexRequest().index("zaful_impress_expose_event_realtime")
+                                    .type("ai-zaful-pc-impress").routing(element.f0).source(json);
+                        }else {
+                            index =  Requests.indexRequest().index("zaful_impress_click_event_realtime")
+                                    .type("ai-zaful-pc-impress").routing(element.f0).source(json);
+                        }
+
+                        return index;
                     }
 
                     @Override
