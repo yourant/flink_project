@@ -6,7 +6,6 @@ import com.globalegrow.tianchi.bean.AmountModel;
 import com.globalegrow.tianchi.bean.PCLogModel;
 import com.globalegrow.tianchi.bean.SkuInfo;
 import com.globalegrow.tianchi.bean.SubEventField;
-import com.google.gson.Gson;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
@@ -42,7 +41,7 @@ public class PCFieldsUtils {
                     skuList.add(subEventField1.getSku());
                 }
             }catch (Exception e){
-                System.out.println("解析错误："+e);
+                System.out.println("subEventField解析错误："+e);
             }
 
         }else {
@@ -98,7 +97,7 @@ public class PCFieldsUtils {
                             skuList.add((String) dataMap.get("sku"));
                         }
                     } catch (Exception e) {
-                        System.err.println("json解析错误--->" + skuInfo);
+                        System.err.println("skuInfojson解析错误--->" + skuInfo);
 
                     }
                 }
