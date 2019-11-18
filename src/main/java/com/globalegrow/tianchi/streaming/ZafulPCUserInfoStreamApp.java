@@ -51,10 +51,10 @@ public class ZafulPCUserInfoStreamApp {
 
     public static void main(String[] args) throws Exception{
 
-//        获取执行环境
+        //获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime); //以event_time作为时间语义
+        env.setParallelism(3);
 
         Properties props = new Properties();
 
@@ -65,18 +65,8 @@ public class ZafulPCUserInfoStreamApp {
         FlinkKafkaConsumer011<String> flinkKafkaConsumer011 =
                 new FlinkKafkaConsumer011<>("glbg-analitic-zaful-pc", new SimpleStringSchema(), props);
 
-        FlinkKafkaConsumer011<String> phpKafkaSource =
-                new FlinkKafkaConsumer011<>("glbg-analitic-zaful-php", new SimpleStringSchema(), props);
-
         //获取kafka数据
         DataStreamSource<String> streamPCData = env.addSource(flinkKafkaConsumer011);
-
-        //获取kafka数据
-        DataStreamSource<String> streamPHPData = env.addSource(phpKafkaSource);
-
-//        DataStreamSource<String> streamPCData = env.readTextFile("file:///E:\\tmp\\flink\\input\\pc_log.txt");
-//
-//        DataStreamSource<String> streamPHPData = env.readTextFile("file:///E:\\tmp\\flink\\input\\php_log.txt");
 
         //处理PC表数据
         DataStream<Tuple5<String,String, String, String, String>> pcResultStream =
@@ -120,7 +110,6 @@ public class ZafulPCUserInfoStreamApp {
                             if (skuInfo.contains("sku")){
                                 skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
                             }
-
                         }
 
                         if (StringUtils.isNotBlank(sub_event_field) || null!=sub_event_field) {
@@ -129,22 +118,19 @@ public class ZafulPCUserInfoStreamApp {
 
                         try {
 
-                            if (eventFiledSkuList != null || eventFiledSkuList.size() > 0) {
+                            if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) {
 
                                 for (String sku : eventFiledSkuList) {
 
                                     out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
-
-                                    System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
                                 }
 
                             }else {
-                                if (skuInfoList != null || skuInfoList.size() > 0) {
+                                if (skuInfoList != null && skuInfoList.size() > 0) {
                                     for (String sku : skuInfoList) {
 
                                         out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
 
-                                        System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
                                     }
                                 }
                             }
@@ -153,46 +139,6 @@ public class ZafulPCUserInfoStreamApp {
                         }
                     }
                 });
-
-        //处理PHP表数据
-        DataStream<Tuple5<String,String,String,String,String>> phpResultStream =
-            streamPHPData.filter(new PHPFilterFunction())
-            .flatMap(new FlatMapFunction<String, Tuple5<String,String,String,String,String>>() {
-                @Override
-                public void flatMap(String value, Collector<Tuple5<String,String, String, String, String>> out) throws Exception {
-                    HashMap<String,Object> dataMap =
-                            JSON.parseObject(value,new TypeReference<HashMap<String,Object>>() {});
-
-                    String cookieId = String.valueOf(dataMap.get("cookie_id"));
-                    String userId = String.valueOf(dataMap.get("user_id"));
-                    String eventType = String.valueOf(dataMap.get("event_type"));
-                    String timeStamp = String.valueOf(dataMap.get("unix_time"));
-
-                    //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-                    Object skuInfo =  String.valueOf(dataMap.get("skuinfo"));
-
-//                    System.out.println("skuInfo: "+skuInfo);
-
-                    List<String> skuInfoList = null;
-
-                    if (String.valueOf(skuInfo).contains("sku")){
-                        skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                    }
-
-                    if (eventType.equals("order") || eventType.equals("purchase")){
-
-                        for (String sku: skuInfoList){
-                            System.out.println(cookieId + "\t"+userId+"\t" + eventType + "\t" + sku + "\t" + timeStamp);
-
-                            out.collect(new Tuple5<>(cookieId,userId,eventType,sku,timeStamp));
-                        }
-                    }
-                }
-            });
-
-        //pc和php数据做合并集合操作
-        DataStream<Tuple5<String,String,String,String,String>> resultStream =
-                pcResultStream.union(phpResultStream);
 
         //将数据保存到ES
         Map<String, String> config = new HashMap<>();
@@ -205,9 +151,10 @@ public class ZafulPCUserInfoStreamApp {
         transportAddresses.add(new InetSocketAddress(InetAddress.getByName("172.31.43.158"), 9302));
         transportAddresses.add(new InetSocketAddress(InetAddress.getByName("172.31.55.231"), 9302));
 
-        resultStream.addSink(new ElasticsearchSink(config, transportAddresses,
+        pcResultStream.addSink(new ElasticsearchSink(config, transportAddresses,
                 new ElasticsearchSinkFunction<Tuple5<String,String,String,String,String>>() {
             public IndexRequest createIndexRequest(Tuple5<String,String,String,String,String> element) {
+
                 Map<String, Object> json = new HashMap<>();
                 json.put("cookie_id", element.f0);
                 json.put("user_id", element.f1);
@@ -215,9 +162,10 @@ public class ZafulPCUserInfoStreamApp {
                 json.put("event_value", element.f3);
 //                long timeStamp = Long.valueOf(element.f4.substring(0,element.f4.length()-3));
                 json.put("time_stamp", Long.valueOf(element.f4));
-
-                return Requests.indexRequest().index("zaful"+"_"+"user"+"_"+element.f2+"_event_realtime")
+//
+                return Requests.indexRequest().index("zaful_user_test_event_realtime")
                         .type("ai-zaful-pc-userinfo").routing(element.f0).source(json);
+
             }
 
             @Override

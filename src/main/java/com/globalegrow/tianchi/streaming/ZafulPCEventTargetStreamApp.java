@@ -229,7 +229,6 @@ public class ZafulPCEventTargetStreamApp {
                 .timeWindow(Time.hours(1))
                 .sum(5);
 
-
         DataStream<Tuple6<String,String, String,String,String,Integer>> eventESTargetDS = pcResultStream.union(phpEventTargetStream);
 
         Map<String, String> config = new HashMap<>();

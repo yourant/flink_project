@@ -56,7 +56,7 @@ public class PCFieldsUtils {
 
                     if ( dataMap.get("sku") != null) {
                         skuList.add((String) dataMap.get("sku"));
-//                        System.out.println(dataMap.get("sku"));
+//
                     }
                 } catch (Exception e) {
                     System.err.println("json解析错误--->" + subEventField);
