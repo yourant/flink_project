@@ -207,8 +207,6 @@ public class ZafulPcAndPhpUserInfoStreamApp {
                     }
                 })).name("zaful_pc_php_kafka_log_to_es").setParallelism(2);
 
-        env.execute("ZafulPCUserInfoStreamApp");
+        env.execute("ZafulPcAndPhpUserInfoStreamApp");
     }
-
-
 }

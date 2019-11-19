@@ -19,6 +19,7 @@ import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.tuple.Tuple5;
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -51,22 +52,38 @@ public class ZafulPCUserInfoStreamApp {
 
     public static void main(String[] args) throws Exception{
 
+        ParameterTool parameterTool = ParameterTool.fromArgs(args);
+
+        //并行度
+        String parallelism = parameterTool.getRequired("parallelism");
+
+        //checkpoit
+        String checkpoit = parameterTool.getRequired("checkpoit");
+
         //获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.setParallelism(3);
+        //设置全局并行度
+        env.setParallelism(Integer.valueOf(parallelism));
+
+        //设置checkpoit
+        env.enableCheckpointing(Long.valueOf(checkpoit));
 
         Properties props = new Properties();
 
-        props.setProperty("bootstrap.servers","172.31.35.194:9092,172.31.50.250:9092,172.31.63.112:9092");
-        props.setProperty("group.id", "zaful_pc_userinfo");
+        props.setProperty("bootstrap.servers",parameterTool.getRequired("bootstrap.servers"));
+        props.setProperty("group.id", parameterTool.getRequired("group.id"));
 
         //初始化kafka自定义DataSource
         FlinkKafkaConsumer011<String> flinkKafkaConsumer011 =
-                new FlinkKafkaConsumer011<>("glbg-analitic-zaful-pc", new SimpleStringSchema(), props);
+                new FlinkKafkaConsumer011<>(parameterTool.getRequired("topic"), new SimpleStringSchema(), props);
+        Boolean startFromEarliest = parameterTool.getBoolean("startFromEarliest", false);
+        if (startFromEarliest) {
+            flinkKafkaConsumer011.setStartFromEarliest();
+        }
 
         //获取kafka数据
-        DataStreamSource<String> streamPCData = env.addSource(flinkKafkaConsumer011);
+        DataStream<String> streamPCData = env.addSource(flinkKafkaConsumer011).shuffle();
 
         //处理PC表数据
         DataStream<Tuple5<String,String, String, String, String>> pcResultStream =
@@ -78,7 +95,7 @@ public class ZafulPCUserInfoStreamApp {
 
                         return pcLogModel;
                     }
-                }).filter(new ZafulPCFilterFunction())
+                }).uid("zaful_pc_data_map").filter(new ZafulPCFilterFunction()).uid("zaful_pc_data_filter")
                 .flatMap(new FlatMapFunction<PCLogModel, Tuple5<String,String, String, String, String>>() {
                     @Override
                     public void flatMap(PCLogModel value, Collector<Tuple5<String,String, String, String, String>> out) throws Exception {
@@ -103,17 +120,9 @@ public class ZafulPCUserInfoStreamApp {
                         if (eventType.equals("expose") || eventType.equals("click") ||
                                 eventType.equals("adt") || eventType.equals("collect")){
 
-                            if (sub_event_field.contains("sku")){
+                            if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")){
                                 eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
                             }
-
-                            if (skuInfo.contains("sku")){
-                                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                            }
-                        }
-
-                        if (StringUtils.isNotBlank(sub_event_field) || null!=sub_event_field) {
-                            eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
                         }
 
                         try {
@@ -125,12 +134,11 @@ public class ZafulPCUserInfoStreamApp {
                                     out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
                                 }
 
-                            }else {
+                            }else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")){
+                                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
                                 if (skuInfoList != null && skuInfoList.size() > 0) {
                                     for (String sku : skuInfoList) {
-
                                         out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
-
                                     }
                                 }
                             }
@@ -138,13 +146,11 @@ public class ZafulPCUserInfoStreamApp {
                             System.out.println("数据错误：" + e);
                         }
                     }
-                });
+                }).uid("pc_clean_data_flatmap");
 
         //将数据保存到ES
         Map<String, String> config = new HashMap<>();
         config.put("cluster.name", "esearch-aws-dy");
-        // This instructs the sink to emit after every element, otherwise they would be buffered
-        config.put("bulk.flush.max.actions", "1");
 
         List<InetSocketAddress> transportAddresses = new ArrayList<>();
         transportAddresses.add(new InetSocketAddress(InetAddress.getByName("172.31.47.84"), 9302));
@@ -163,7 +169,7 @@ public class ZafulPCUserInfoStreamApp {
 //                long timeStamp = Long.valueOf(element.f4.substring(0,element.f4.length()-3));
                 json.put("time_stamp", Long.valueOf(element.f4));
 //
-                return Requests.indexRequest().index("zaful_user_test_event_realtime")
+                return Requests.indexRequest().index("zaful"+"_"+"user"+"_"+element.f2+"_event_realtime")
                         .type("ai-zaful-pc-userinfo").routing(element.f0).source(json);
 
             }
@@ -174,6 +180,6 @@ public class ZafulPCUserInfoStreamApp {
             }
         }));
 
-        env.execute("ZafulPCUserInfoStreamApp");
+        env.execute("ZafulPCUserInfoStreamApp" + System.currentTimeMillis());
     }
 }

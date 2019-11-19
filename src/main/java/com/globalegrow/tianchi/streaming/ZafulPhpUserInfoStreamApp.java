@@ -12,6 +12,7 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple5;
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -41,25 +42,40 @@ public class ZafulPhpUserInfoStreamApp {
 
     public static void main(String[] args) throws Exception{
 
+        ParameterTool parameterTool = ParameterTool.fromArgs(args);
+
+        //并行度
+        String parallelism = parameterTool.getRequired("parallelism");
+
+        //checkpoit
+        String checkpoit = parameterTool.getRequired("checkpoit");
+
         //获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.setParallelism(2);
+        env.setParallelism(Integer.valueOf(parallelism));
+
+        //设置checkpoit
+        env.enableCheckpointing(Long.valueOf(checkpoit));
 
         Properties props = new Properties();
 
-        props.setProperty("bootstrap.servers","172.31.35.194:9092,172.31.50.250:9092,172.31.63.112:9092");
-        props.setProperty("group.id", "zaful_php_userinfo");
+        props.setProperty("bootstrap.servers",parameterTool.getRequired("bootstrap.servers"));
+        props.setProperty("group.id", parameterTool.getRequired("group.id"));
 
         FlinkKafkaConsumer011<String> phpKafkaSource =
-                new FlinkKafkaConsumer011<>("glbg-analitic-zaful-php", new SimpleStringSchema(), props);
+                new FlinkKafkaConsumer011<>(parameterTool.getRequired("topic"), new SimpleStringSchema(), props);
+        Boolean startFromEarliest = parameterTool.getBoolean("startFromEarliest", false);
+        if (startFromEarliest) {
+            phpKafkaSource.setStartFromEarliest();
+        }
 
         //获取kafka数据
-        DataStreamSource<String> streamPHPData = env.addSource(phpKafkaSource);
+        DataStream<String> streamPHPData = env.addSource(phpKafkaSource).shuffle();
 
         //处理PHP表数据
         DataStream<Tuple5<String,String,String,String,String>> phpResultStream =
-                streamPHPData.filter(new PHPFilterFunction())
+                streamPHPData.filter(new PHPFilterFunction()).uid("zaful_php_filter")
                         .flatMap(new FlatMapFunction<String, Tuple5<String,String,String,String,String>>() {
                             @Override
                             public void flatMap(String value, Collector<Tuple5<String,String, String, String, String>> out) throws Exception {
@@ -88,13 +104,11 @@ public class ZafulPhpUserInfoStreamApp {
                                     }
                                 }
                             }
-                        });
+                        }).uid("php_clean_data_to_es");
 
         //将数据保存到ES
         Map<String, String> config = new HashMap<>();
         config.put("cluster.name", "esearch-aws-dy");
-        // This instructs the sink to emit after every element, otherwise they would be buffered
-        config.put("bulk.flush.max.actions", "1");
 
         List<InetSocketAddress> transportAddresses = new ArrayList<>();
         transportAddresses.add(new InetSocketAddress(InetAddress.getByName("172.31.47.84"), 9302));
@@ -113,7 +127,7 @@ public class ZafulPhpUserInfoStreamApp {
 //                long timeStamp = Long.valueOf(element.f4.substring(0,element.f4.length()-3));
                         json.put("time_stamp", Long.valueOf(element.f4));
 //
-                        return Requests.indexRequest().index("zaful_user_test_event_realtime")
+                        return Requests.indexRequest().index("zaful"+"_"+"user"+"_"+element.f2+"_event_realtime")
                                 .type("ai-zaful-pc-userinfo").routing(element.f0).source(json);
                     }
 
@@ -123,6 +137,6 @@ public class ZafulPhpUserInfoStreamApp {
                     }
                 }));
 
-        env.execute("ZafulPhpUserInfoStreamApp");
+        env.execute("ZafulPhpUserInfoStreamApp" + + System.currentTimeMillis());
     }
 }

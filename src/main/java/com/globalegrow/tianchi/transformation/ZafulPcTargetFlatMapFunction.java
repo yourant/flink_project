@@ -47,44 +47,36 @@ public class ZafulPcTargetFlatMapFunction implements FlatMapFunction<PCLogModel,
         if (eventType.equals("expose") || eventType.equals("click") ||
                 eventType.equals("adt") || eventType.equals("collect")){
 
-            if (sub_event_field.contains("sku")){
+            if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")){
                 eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
-            }
-
-            if (skuInfo.contains("sku")){
-                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
             }
 
         }
 
         try {
 
-            if (eventFiledSkuList != null || eventFiledSkuList.size() > 0) { //取sub_event_field里的sku
+            if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) { //取sub_event_field里的sku
 
                 for (String sku : eventFiledSkuList) {
 
                     PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
 
                     out.collect(behahvior);
-//                    out.collect(new Tuple6<>(eventType, sku, time,platform,countryCode,1));
-
-//                  System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
                 }
 
-            }else {
-                if (skuInfoList != null || skuInfoList.size() > 0) { //取skuinfo里的sku
+            }else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")){ //取skuinfo里的sku
+
+                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                if (skuInfoList != null && skuInfoList.size() > 0) {
                     for (String sku : skuInfoList) {
 
                         PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
 
                         out.collect(behahvior);
-
-//                        out.collect(new Tuple6<>(eventType, sku, time, platform, countryCode, 1));
-
-//                      System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
                     }
                 }
             }
+
         }catch (Exception e){
 //          System.out.println("数据错误：" + e);
         }
