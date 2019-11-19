@@ -33,6 +33,7 @@ import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkFunc
 import org.apache.flink.streaming.connectors.elasticsearch.RequestIndexer;
 import org.apache.flink.streaming.connectors.elasticsearch5.ElasticsearchSink;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import org.apache.flink.table.expressions.E;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.elasticsearch.action.index.IndexRequest;
@@ -173,8 +174,14 @@ public class ZafulPcSkuEventTargetAppVtwo {
                 .map(new MapFunction<String, PCLogModel>() { //解析kafka json字符串为PCLogModel对象
                     @Override
                     public PCLogModel map(String value) throws Exception {
+                        PCLogModel pcLogModel = null;
 
-                        PCLogModel pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        try {
+
+                            pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
 
                         return pcLogModel;
                     }

@@ -91,7 +91,14 @@ public class ZafulPCUserInfoStreamApp {
                     @Override
                     public PCLogModel map(String value) throws Exception {
 
-                        PCLogModel pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        PCLogModel pcLogModel = null;
+
+                        try {
+
+                            pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
 
                         return pcLogModel;
                     }
@@ -100,51 +107,64 @@ public class ZafulPCUserInfoStreamApp {
                     @Override
                     public void flatMap(PCLogModel value, Collector<Tuple5<String,String, String, String, String>> out) throws Exception {
 
-                        String cookieId = value.getCookie_id();
-                        String userId = value.getUser_id();
-                        String eventType = value.getEvent_type();
-                        String timeStamp = value.getUnix_time();
-
-                        //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-                        String sub_event_field = value.getSub_event_field();
-                        String skuInfo = value.getSkuinfo();
-
-                        if (eventType.equals("search")){
-                            out.collect(new Tuple5<>(cookieId,userId,eventType,value.getSearch_result_word(),timeStamp));
-                        }
-
-                        List<String> eventFiledSkuList = null;
-
-                        List<String> skuInfoList = null;
-
-                        if (eventType.equals("expose") || eventType.equals("click") ||
-                                eventType.equals("adt") || eventType.equals("collect")){
-
-                            if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")){
-                                eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
-                            }
-                        }
-
                         try {
 
-                            if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) {
+                        if (value != null) {
 
-                                for (String sku : eventFiledSkuList) {
+                            String cookieId = value.getCookie_id();
+                            String userId = value.getUser_id();
+                            String eventType = value.getEvent_type();
+                            String timeStamp = value.getUnix_time();
 
-                                    out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
+                            //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                            String sub_event_field = value.getSub_event_field();
+                            String skuInfo = value.getSkuinfo();
+
+                            if (eventType.equals("search")) {
+                                String searchWord = value.getSearch_result_word();
+                                if (StringUtils.isBlank(searchWord)){
+                                    searchWord = value.getPage_code().replace("s-","");
                                 }
+                                out.collect(new Tuple5<>(cookieId, userId, eventType, searchWord, timeStamp));
+                            }
 
-                            }else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")){
-                                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                                if (skuInfoList != null && skuInfoList.size() > 0) {
-                                    for (String sku : skuInfoList) {
-                                        out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
-                                    }
+                            List<String> eventFiledSkuList = null;
+
+                            List<String> skuInfoList = null;
+
+                            if (eventType.equals("expose") || eventType.equals("click") ||
+                                    eventType.equals("adt") || eventType.equals("collect")) {
+
+                                if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")) {
+                                    eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
                                 }
                             }
-                        }catch (Exception e){
-                            System.out.println("数据错误：" + e);
+
+                            try {
+
+                                if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) {
+
+                                    for (String sku : eventFiledSkuList) {
+
+                                        out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
+                                    }
+
+                                } else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")) {
+                                    skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                                    if (skuInfoList != null && skuInfoList.size() > 0) {
+                                        for (String sku : skuInfoList) {
+                                            out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
+                                        }
+                                    }
+                                }
+                            } catch (Exception e) {
+                                System.out.println("数据错误：" + e);
+                            }
                         }
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+
                     }
                 }).uid("pc_clean_data_flatmap");
 
@@ -171,14 +191,13 @@ public class ZafulPCUserInfoStreamApp {
 //
                 return Requests.indexRequest().index("zaful"+"_"+"user"+"_"+element.f2+"_event_realtime")
                         .type("ai-zaful-pc-userinfo").routing(element.f0).source(json);
-
             }
 
             @Override
             public void process(Tuple5<String,String,String,String,String> element, RuntimeContext ctx, RequestIndexer indexer) {
                 indexer.add(createIndexRequest(element));
             }
-        }));
+        })).name("zaful_pc_userInfo_sink_es");
 
         env.execute("ZafulPCUserInfoStreamApp" + System.currentTimeMillis());
     }

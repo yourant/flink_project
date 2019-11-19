@@ -17,18 +17,25 @@ public class PHPFilterFunction implements FilterFunction<String> {
 
     @Override
     public boolean filter(String value) throws Exception {
-        HashMap<String,Object> dataMap =
-                JSON.parseObject(value,new TypeReference<HashMap<String,Object>>() {});
-
-        String eventType = (String)dataMap.get("event_type");
-
-        String platform = (String)dataMap.get("platform");
 
         boolean isZafulEvent = false;
 
-        if (PCFieldsUtils.isZafulCodeSite(value) && (eventType.equals("order") || eventType.equals("purchase"))
-         && platform.equals("pc")){
-            isZafulEvent = true;
+        try {
+
+            HashMap<String,Object> dataMap =
+                    JSON.parseObject(value,new TypeReference<HashMap<String,Object>>() {});
+
+            String eventType = (String)dataMap.get("event_type");
+
+            String platform = (String)dataMap.get("platform");
+
+            if (PCFieldsUtils.isZafulCodeSite(value) && (eventType.equals("order") || eventType.equals("purchase"))
+             && platform.equals("pc")){
+                isZafulEvent = true;
+            }
+
+        }catch (Exception e){
+            e.printStackTrace();
         }
 
         return isZafulEvent;

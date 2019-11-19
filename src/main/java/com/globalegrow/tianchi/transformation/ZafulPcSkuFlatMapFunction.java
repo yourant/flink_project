@@ -20,22 +20,27 @@ public class ZafulPcSkuFlatMapFunction implements FlatMapFunction<PCLogModel, Za
 
     @Override
     public void flatMap(PCLogModel value, Collector<ZafulPcSkuBehavior> out) throws Exception {
-        String cookieId = value.getCookie_id();
-        String userId = value.getUser_id();
-        String eventType = value.getEvent_type();
-        long timeStamp = Long.valueOf(value.getUnix_time());
 
-        //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-        String sub_event_field = value.getSub_event_field();
-        String skuInfo = value.getSkuinfo();
+        try {
 
-        int exposeCount = 0;
+            if (value != null) {
 
-        if (eventType.equals("expose")){
-            exposeCount = 1;
-        }else{
-            exposeCount = -5;
-        }
+                String cookieId = value.getCookie_id();
+                String userId = value.getUser_id();
+                String eventType = value.getEvent_type();
+                long timeStamp = Long.valueOf(value.getUnix_time());
+
+                //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                String sub_event_field = value.getSub_event_field();
+                String skuInfo = value.getSkuinfo();
+
+                int exposeCount = 0;
+
+                if (eventType.equals("expose")) {
+                    exposeCount = 1;
+                } else {
+                    exposeCount = -5;
+                }
 
 //        if (eventType.equals("search")){
 //            ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId,userId,eventType,value.getSearch_result_word(),timeStamp);
@@ -43,55 +48,55 @@ public class ZafulPcSkuFlatMapFunction implements FlatMapFunction<PCLogModel, Za
 ////            out.collect(new Tuple6<>(cookieId,userId,eventType,value.getSearch_result_word(),timeStamp,exposeCount));
 //        }
 
-        List<String> eventFiledSkuList = null;
+                List<String> eventFiledSkuList = null;
 
-        List<String> skuInfoList = null;
+                List<String> skuInfoList = null;
 
-        if (eventType.equals("expose") || eventType.equals("click") ||
-                eventType.equals("adt") || eventType.equals("collect")){
+                if (eventType.equals("expose") || eventType.equals("click") ||
+                        eventType.equals("adt") || eventType.equals("collect")) {
 
-            if (sub_event_field.contains("sku")){
-                eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
-            }
+                    if (sub_event_field.contains("sku")) {
+                        eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
+                    }
 
-            if (skuInfo.contains("sku")){
-                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-            }
-        }
-
-        if (StringUtils.isNotBlank(sub_event_field) || null!=sub_event_field) {
-            eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
-        }
-
-        try {
-
-            if (eventFiledSkuList != null || eventFiledSkuList.size() > 0) {
-
-                for (String sku : eventFiledSkuList) {
-
-                    ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId,userId,eventType,sku,timeStamp);
-                    out.collect(behavior);
-
-//                    out.collect(new Tuple6<>(cookieId, userId, eventType, sku, timeStamp,exposeCount));
-
-//                                            System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
+                    if (skuInfo.contains("sku")) {
+                        skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                    }
                 }
 
-            }else {
-                if (skuInfoList != null || skuInfoList.size() > 0) {
-                    for (String sku : skuInfoList) {
+                if (StringUtils.isNotBlank(sub_event_field) || null != sub_event_field) {
+                    eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
+                }
 
-                        ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId,userId,eventType,sku,timeStamp);
-                        out.collect(behavior);
+                try {
 
-//                        out.collect(new Tuple6<>(cookieId, userId, eventType, sku, timeStamp, exposeCount));
+                    if (eventFiledSkuList != null || eventFiledSkuList.size() > 0) {
 
-//                                            System.out.println(cookieId + "\t" + userId + "\t" + eventType + "\t" + sku + "\t" + timeStamp);
+                        for (String sku : eventFiledSkuList) {
+
+                            ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId, userId, eventType, sku, timeStamp);
+                            out.collect(behavior);
+
+                        }
+
+                    } else {
+                        if (skuInfoList != null || skuInfoList.size() > 0) {
+                            for (String sku : skuInfoList) {
+
+                                ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId, userId, eventType, sku, timeStamp);
+                                out.collect(behavior);
+
+
+                            }
+                        }
                     }
+
+                } catch (Exception e) {
+                    System.out.println("数据错误：" + e);
                 }
             }
         }catch (Exception e){
-            System.out.println("数据错误：" + e);
+            e.printStackTrace();
         }
     }
 }

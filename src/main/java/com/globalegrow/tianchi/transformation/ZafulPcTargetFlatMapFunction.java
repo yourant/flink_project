@@ -22,63 +22,71 @@ public class ZafulPcTargetFlatMapFunction implements FlatMapFunction<PCLogModel,
     @Override
     public void flatMap(PCLogModel value, Collector<PcEventBehahvior> out) throws Exception {
 
-        String eventType = value.getEvent_type();
-        String timeStamp = value.getUnix_time();
-
-        long time = 0L;
-
-        if (StringUtils.isNotBlank(timeStamp)) {
-//            time = DateUtil.timeStamp2DateStr(timeStamp,"yyyyMMddHH");
-            time = Long.valueOf(timeStamp);
-        }
-
-        String platform = value.getPlatform();
-        String countryCode = value.getCountry_code();
-
-        //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-        String sub_event_field = value.getSub_event_field();
-
-        String skuInfo = value.getSkuinfo();
-
-        List<String> eventFiledSkuList = null;
-
-        List<String> skuInfoList = null;
-
-        if (eventType.equals("expose") || eventType.equals("click") ||
-                eventType.equals("adt") || eventType.equals("collect")){
-
-            if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")){
-                eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
-            }
-
-        }
-
         try {
 
-            if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) { //取sub_event_field里的sku
+            if (value != null) {
 
-                for (String sku : eventFiledSkuList) {
+                String eventType = value.getEvent_type();
+                String timeStamp = value.getUnix_time();
 
-                    PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
+                long time = 0L;
 
-                    out.collect(behahvior);
+                if (StringUtils.isNotBlank(timeStamp)) {
+    //            time = DateUtil.timeStamp2DateStr(timeStamp,"yyyyMMddHH");
+                    time = Long.valueOf(timeStamp);
                 }
 
-            }else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")){ //取skuinfo里的sku
+                String platform = value.getPlatform();
+                String countryCode = value.getCountry_code();
 
-                skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                if (skuInfoList != null && skuInfoList.size() > 0) {
-                    for (String sku : skuInfoList) {
+                //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                String sub_event_field = value.getSub_event_field();
 
-                        PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
+                String skuInfo = value.getSkuinfo();
 
-                        out.collect(behahvior);
+                List<String> eventFiledSkuList = null;
+
+                List<String> skuInfoList = null;
+
+                if (eventType.equals("expose") || eventType.equals("click") ||
+                        eventType.equals("adt") || eventType.equals("collect")) {
+
+                    if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")) {
+                        eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
                     }
+
+                }
+
+                try {
+
+                    if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) { //取sub_event_field里的sku
+
+                        for (String sku : eventFiledSkuList) {
+
+                            PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
+
+                            out.collect(behahvior);
+                        }
+
+                    } else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")) { //取skuinfo里的sku
+
+                        skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                        if (skuInfoList != null && skuInfoList.size() > 0) {
+                            for (String sku : skuInfoList) {
+
+                                PcEventBehahvior behahvior = new PcEventBehahvior(eventType, sku, time, platform, countryCode);
+
+                                out.collect(behahvior);
+                            }
+                        }
+                    }
+
+                } catch (Exception e) {
+    //          System.out.println("数据错误：" + e);
                 }
             }
-
         }catch (Exception e){
-//          System.out.println("数据错误：" + e);
+            e.printStackTrace();
         }
     }
 }

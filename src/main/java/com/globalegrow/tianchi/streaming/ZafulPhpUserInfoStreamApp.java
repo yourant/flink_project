@@ -79,29 +79,41 @@ public class ZafulPhpUserInfoStreamApp {
                         .flatMap(new FlatMapFunction<String, Tuple5<String,String,String,String,String>>() {
                             @Override
                             public void flatMap(String value, Collector<Tuple5<String,String, String, String, String>> out) throws Exception {
-                                HashMap<String,Object> dataMap =
-                                        JSON.parseObject(value,new TypeReference<HashMap<String,Object>>() {});
 
-                                String cookieId = String.valueOf(dataMap.get("cookie_id"));
-                                String userId = String.valueOf(dataMap.get("user_id"));
-                                String eventType = String.valueOf(dataMap.get("event_type"));
-                                String timeStamp = String.valueOf(dataMap.get("unix_time"));
+                                try {
 
-                                //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-                                Object skuInfo =  String.valueOf(dataMap.get("skuinfo"));
+                                    if (StringUtils.isNotBlank(value)) {
+                                        HashMap<String, Object> dataMap =
+                                                JSON.parseObject(value, new TypeReference<HashMap<String, Object>>() {
+                                                });
 
-                                List<String> skuInfoList = null;
+                                        String cookieId = String.valueOf(dataMap.get("cookie_id"));
+                                        String userId = String.valueOf(dataMap.get("user_id"));
+                                        String eventType = String.valueOf(dataMap.get("event_type"));
+                                        String timeStamp = String.valueOf(dataMap.get("unix_time"));
 
-                                if (String.valueOf(skuInfo).contains("sku")){
-                                    skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                                }
+                                        //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                                        Object skuInfo = String.valueOf(dataMap.get("skuinfo"));
 
-                                if (eventType.equals("order") || eventType.equals("purchase")){
+                                        List<String> skuInfoList = null;
 
-                                    for (String sku: skuInfoList){
+                                        if (String.valueOf(skuInfo).contains("sku")) {
+                                            skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                                        }
 
-                                        out.collect(new Tuple5<>(cookieId,userId,eventType,sku,timeStamp));
+                                        if (eventType.equals("order") || eventType.equals("purchase")) {
+
+                                            if (skuInfoList!= null && skuInfoList.size()>0) {
+
+                                                for (String sku : skuInfoList) {
+
+                                                    out.collect(new Tuple5<>(cookieId, userId, eventType, sku, timeStamp));
+                                                }
+                                            }
+                                        }
                                     }
+                                }catch (Exception e){
+                                    e.printStackTrace();
                                 }
                             }
                         }).uid("php_clean_data_to_es");
@@ -135,7 +147,7 @@ public class ZafulPhpUserInfoStreamApp {
                     public void process(Tuple5<String,String,String,String,String> element, RuntimeContext ctx, RequestIndexer indexer) {
                         indexer.add(createIndexRequest(element));
                     }
-                }));
+                })).name("zaful_php_userInfo_sink_es");
 
         env.execute("ZafulPhpUserInfoStreamApp" + + System.currentTimeMillis());
     }

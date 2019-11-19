@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.globalegrow.tianchi.bean.ZafulPcSkuBehavior;
 import com.globalegrow.tianchi.util.PCFieldsUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.tuple.Tuple6;
 import org.apache.flink.util.Collector;
@@ -21,35 +22,43 @@ public class ZafulPhpSkuFlatMapFunction implements FlatMapFunction<String, Zaful
 
     @Override
     public void flatMap(String value, Collector<ZafulPcSkuBehavior> out) throws Exception {
-        HashMap<String,Object> dataMap =
-                JSON.parseObject(value,new TypeReference<HashMap<String,Object>>() {});
 
-        String cookieId = String.valueOf(dataMap.get("cookie_id"));
-        String userId = String.valueOf(dataMap.get("user_id"));
-        String eventType = String.valueOf(dataMap.get("event_type"));
-        long timeStamp = Long.valueOf(String.valueOf(dataMap.get("unix_time")));
+        try {
 
-        //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-        Object skuInfo =  String.valueOf(dataMap.get("skuinfo"));
+            if (StringUtils.isNotBlank(value)) {
+
+                HashMap<String, Object> dataMap =
+                        JSON.parseObject(value, new TypeReference<HashMap<String, Object>>() {
+                        });
+
+                String cookieId = String.valueOf(dataMap.get("cookie_id"));
+                String userId = String.valueOf(dataMap.get("user_id"));
+                String eventType = String.valueOf(dataMap.get("event_type"));
+                long timeStamp = Long.valueOf(String.valueOf(dataMap.get("unix_time")));
+
+                //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                Object skuInfo = String.valueOf(dataMap.get("skuinfo"));
 
 //                    System.out.println("skuInfo: "+skuInfo);
 
-        List<String> skuInfoList = null;
+                List<String> skuInfoList = null;
 
-        if (String.valueOf(skuInfo).contains("sku")){
-            skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-        }
+                if (String.valueOf(skuInfo).contains("sku")) {
+                    skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                }
 
-        if (eventType.equals("order") || eventType.equals("purchase")){
+                if (eventType.equals("order") || eventType.equals("purchase")) {
 
-            for (String sku: skuInfoList){
-//                                        System.out.println(cookieId + "\t"+userId+"\t" + eventType + "\t" + sku + "\t" + timeStamp);
+                    for (String sku : skuInfoList) {
 
-                ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId,userId,eventType,sku,timeStamp);
-                out.collect(behavior);
+                        ZafulPcSkuBehavior behavior = new ZafulPcSkuBehavior(cookieId, userId, eventType, sku, timeStamp);
+                        out.collect(behavior);
 
-//                out.collect(new Tuple6<>(cookieId,userId,eventType,sku,timeStamp,-5));
+                    }
+                }
             }
+        }catch (Exception e){
+            e.printStackTrace();
         }
     }
 }
