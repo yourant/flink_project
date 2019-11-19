@@ -5,12 +5,14 @@ import com.globalegrow.tianchi.transformation.ZafulPCEventFilterFunction;
 import com.globalegrow.tianchi.util.PCFieldsUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.io.OutputFormat;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -55,7 +57,7 @@ public class ZafulUserSkuNegativeFeddbackStreamAppLocal {
         env.setParallelism(1);
 
         DataStreamSource<String> streamPCData = env.readTextFile("C:\\Users\\Administrator" +
-                "\\Desktop\\pc_log1.txt");
+                "\\Desktop\\pc_log.txt");
 
         SingleOutputStreamOperator<PCLogModel> burialAfterEventFilter = streamPCData.map(new MapFunction<String, PCLogModel>() {
             @Override
@@ -65,7 +67,16 @@ public class ZafulUserSkuNegativeFeddbackStreamAppLocal {
 
                 return pcLogModel;
             }
-        }).uid("conver_burail_to_model").filter(new ZafulPCEventFilterFunction()).uid("event_filter");
+        }).uid("conver_burail_to_model").filter(new FilterFunction<PCLogModel>() {
+            @Override
+            public boolean filter(PCLogModel pcLogModel) throws Exception {
+                boolean filter = false;
+                if (pcLogModel != null) {
+                     filter = true;
+                }
+                return filter;
+            }
+        }).filter(new ZafulPCEventFilterFunction()).uid("event_filter");
 
 
         SingleOutputStreamOperator<Tuple3<String, String, String>> burialAfterConvert =
@@ -108,8 +119,9 @@ public class ZafulUserSkuNegativeFeddbackStreamAppLocal {
                         }
                     }
                 }).uid("convert_date_to_redis_local");
-        // burialAfterConvert.writeAsText("C:\\Users\\Administrator\\Desktop\\pc_log11.txt",FileSystem.WriteMode.OVERWRITE);
-        burialAfterConvert.writeUsingOutputFormat(new RedisLPushAndLTrimOutPut(redisServers, redisPassword, keyPrefix, expireSeconds));
+         burialAfterConvert.writeAsText("C:\\Users\\Administrator\\Desktop\\pc_log11.txt", FileSystem.WriteMode.OVERWRITE);
+      //  burialAfterConvert.writeUsingOutputFormat(new RedisLPushAndLTrimOutPut(redisServers,
+             //   redisPassword, keyPrefix, expireSeconds));
 
         env.execute(parameterTool.get("job-name",
                 "realtime-user-event-negative-feddback-redis-local") + System.currentTimeMillis());

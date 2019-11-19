@@ -5,6 +5,7 @@ import com.globalegrow.tianchi.transformation.ZafulPCEventFilterFunction;
 import com.globalegrow.tianchi.util.PCFieldsUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.io.OutputFormat;
@@ -12,7 +13,6 @@ import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -51,10 +51,21 @@ public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
 
         Integer expireSeconds = parameterTool.getInt("expireSeconds", 86400);
 
+        //并行度
+        String parallelism = parameterTool.getRequired("parallelism");
+
+        //checkpoit
+        String checkpoit = parameterTool.getRequired("checkpoit");
+
+        //获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.enableCheckpointing(1000, CheckpointingMode.EXACTLY_ONCE);
-        //设置一个并行度，防止打炸redis
-        env.setParallelism(parameterTool.getInt("job.parallelism", 1));
+
+        //设置全局并行度
+        env.setParallelism(Integer.valueOf(parallelism));
+
+        //设置checkpoit
+        env.enableCheckpointing(Long.valueOf(checkpoit));
+
         Properties props = new Properties();
 
         props.setProperty("bootstrap.servers", parameterTool.getRequired("bootstrap.servers"));
@@ -75,56 +86,84 @@ public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
             @Override
             public PCLogModel map(String value) throws Exception {
 
-                PCLogModel pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                PCLogModel pcLogModel = null;
+
+                try {
+
+                    pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
 
                 return pcLogModel;
             }
-        }).uid("conver_burail_to_model").filter(new ZafulPCEventFilterFunction()).uid("event_filter");
-
-
+        }).uid("conver_burail_to_model").filter(new FilterFunction<PCLogModel>() {
+            @Override
+            public boolean filter(PCLogModel pcLogModel) throws Exception {
+                boolean filter = false;
+                if (pcLogModel != null) {
+                    filter = true;
+                }
+                return filter;
+            }
+        }).filter(new ZafulPCEventFilterFunction()).uid(
+                "event_filter");
 
 
         SingleOutputStreamOperator<Tuple3<String, String, String>> burialAfterConvert =
                 burialAfterEventFilter.flatMap(new FlatMapFunction<PCLogModel, Tuple3<String, String, String>>() {
                     @Override
                     public void flatMap(PCLogModel value, Collector<Tuple3<String, String, String>> out) throws Exception {
+                        try {
+                            if (value != null) {
 
-                        String cookieId = value.getCookie_id();
-                        String eventType = value.getEvent_type();
-                        if (StringUtils.isNotBlank(cookieId)) {
+                                String cookieId = value.getCookie_id();
+                                String eventType = value.getEvent_type();
+                                if (StringUtils.isNotBlank(cookieId)) {
 
-                            //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
-                            String sub_event_field = value.getSub_event_field();
-                            String skuInfo = value.getSkuinfo();
-                            List<String> eventFiledSkuList = null;
-                            List<String> skuInfoList = null;
-                            //先从sub_event_field里面拿数据，拿不到才从skuinfo里面拿数据
-                            try {
-                                if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")) {
-                                    eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
 
-                                }
-                                if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) {
-                                    for (String sku : eventFiledSkuList) {
-                                        out.collect(new Tuple3<>(cookieId, eventType, sku));
-                                    }
-                                } else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")) {
-                                    skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
-                                    if (skuInfoList != null && skuInfoList.size() > 0) {
-                                        for (String sku : skuInfoList) {
-                                            out.collect(new Tuple3<>(cookieId, eventType, sku));
+                                    //取skuinfo和sub_event_field的sku值，有可能是数组json格式，也有可能直接是json格式
+                                    String sub_event_field = value.getSub_event_field();
+                                    String skuInfo = value.getSkuinfo();
+                                    List<String> eventFiledSkuList = null;
+
+                                    List<String> skuInfoList = null;
+                                    //先从sub_event_field里面拿数据，拿不到才从skuinfo里面拿数据
+                                    try {
+                                        if (StringUtils.isNotBlank(sub_event_field) && sub_event_field.contains("sku")) {
+                                            eventFiledSkuList = PCFieldsUtils.getSkuFromSubEventFiled(sub_event_field);
+
                                         }
+                                        if (eventFiledSkuList != null && eventFiledSkuList.size() > 0) {
+
+                                            for (String sku : eventFiledSkuList) {
+
+                                                out.collect(new Tuple3<>(cookieId, eventType, sku));
+                                            }
+
+                                        } else if (StringUtils.isNotBlank(skuInfo) && skuInfo.contains("sku")) {
+                                            skuInfoList = PCFieldsUtils.getSkuFromSkuInfo(skuInfo);
+                                            if (skuInfoList != null && skuInfoList.size() > 0) {
+                                                for (String sku : skuInfoList) {
+                                                    out.collect(new Tuple3<>(cookieId, eventType, sku));
+                                                }
+                                            }
+                                        }
+
+                                    } catch (Exception e) {
+                                        logger.error("解析 json 数据出错: {}", value, e);
                                     }
                                 }
-
-
-                            } catch (Exception e) {
-                                logger.error("解析 json 数据出错: {}", value, e);
                             }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
+
                 }).uid("convert_date_to_redis");
-        burialAfterConvert.writeUsingOutputFormat(new RedisLPushAndLTrimOutPut(redisServers, redisPassword, keyPrefix, expireSeconds));
+        burialAfterConvert.writeUsingOutputFormat(new
+
+                RedisLPushAndLTrimOutPut(redisServers, redisPassword, keyPrefix, expireSeconds));
 
         env.execute(parameterTool.get("job-name", "realtime-user-event-negative-feddback-redis") + System.currentTimeMillis());
     }
