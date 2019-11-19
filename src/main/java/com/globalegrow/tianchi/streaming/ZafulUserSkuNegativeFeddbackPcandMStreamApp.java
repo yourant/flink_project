@@ -5,7 +5,6 @@ import com.globalegrow.tianchi.transformation.ZafulPCEventFilterFunction;
 import com.globalegrow.tianchi.util.PCFieldsUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
-import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.io.OutputFormat;
@@ -97,17 +96,7 @@ public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
 
                 return pcLogModel;
             }
-        }).uid("conver_burail_to_model").filter(new FilterFunction<PCLogModel>() {
-            @Override
-            public boolean filter(PCLogModel pcLogModel) throws Exception {
-                boolean filter = false;
-                if (pcLogModel != null) {
-                    filter = true;
-                }
-                return filter;
-            }
-        }).filter(new ZafulPCEventFilterFunction()).uid(
-                "event_filter");
+        }).uid("conver_burail_to_model").filter(new ZafulPCEventFilterFunction()).uid("event_filter");
 
 
         SingleOutputStreamOperator<Tuple3<String, String, String>> burialAfterConvert =

@@ -13,16 +13,18 @@ public class ZafulPCEventFilterFunction implements FilterFunction<PCLogModel> {
 
     @Override
     public boolean filter(PCLogModel value) throws Exception {
-
-        String eventType = value.getEvent_type();
-
         boolean isProcessEvent = false;
+        if (null != value) {
 
-        if (eventType.equals("expose") || eventType.equals("click") ||
-                eventType.equals("adt") || eventType.equals("collect") ){
-            isProcessEvent = true;
+            String eventType = value.getEvent_type();
+
+
+            if (eventType.equals("expose") || eventType.equals("click") ||
+                    eventType.equals("adt") || eventType.equals("collect")) {
+                isProcessEvent = true;
+            }
+
         }
-
         return isProcessEvent;
     }
 }
