@@ -29,10 +29,18 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * @Author: xhuan_wang
+ * 用户负反馈spu计算flink流
+ *
+ * @Author: joker
  * @Description:
  * @Date: Created in 16:23 2019/10/31
- * @Modified:
+ * @Modified: /usr/local/services/flink-1.9.0/bin/flink run -d -m yarn-cluster -yn 3 -yjm 1024 -ytm 1024 -yqu root.flink -ynm
+ * UserSkuNegativeFeddback -c com.globalegrow.tianchi.streaming.ZafulUserSkuNegativeFeddbackPcandMStreamApp
+ * /home/user_00/flink_project-1.0-jar-with-dependencies.jar --parallelism 3 --checkpoit 500 --bootstrap.servers
+ * 172.31.35.194:9092,172.31.50.250:9092,172.31.63.112:9092,172.31.53.157:9092,172.31.54.122:9092 --group.id
+ * UserSkuNegativeFeddback——20191118714 --topic glbg-analitic-zaful-pc --startFromEarliest false --redisServers
+ * arkpipeline-0001-001.mczgdb.0001.use1.cache.amazonaws.com:6379 --redisPassword
+ * 6e1KWyC29w --keyPrefix zaful_pc_negative_feedback_ww --expireSeconds 86400
  */
 public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
     protected static final Logger logger = LoggerFactory.getLogger(ZafulUserSkuNegativeFeddbackPcandMStreamApp.class);
@@ -193,12 +201,15 @@ public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
             Set<HostAndPort> nodes = new HashSet<>();
 
             for (String ipPort : serverArray) {
+                logger.info("ipPort{}", ipPort);
+                System.out.println("ipPort-----------" + ipPort);
                 String[] ipPortPair = ipPort.split(":");
                 nodes.add(new HostAndPort(ipPortPair[0].trim(), Integer.valueOf(ipPortPair[1].trim())));
             }
 
-            this.jedisCluster = new JedisCluster(nodes, 10000, 10000, 2,
-                    this.redisPassword, new GenericObjectPoolConfig());
+//            this.jedisCluster = new JedisCluster(nodes, 10000, 10000, 2,this.redisPassword, new GenericObjectPoolConfig());
+
+            this.jedisCluster = new JedisCluster(nodes, 10000, 10000, 2, new GenericObjectPoolConfig());
 
         }
 
@@ -230,13 +241,14 @@ public class ZafulUserSkuNegativeFeddbackPcandMStreamApp {
             try {
                 String cookieId = record.getField(0).toString();
                 String eventType = record.getField(1).toString();
-                String sku = record.getField(2).toString();
+                //String sku = record.getField(2).toString();
+                String spu = record.getField(2).toString().substring(0, 7);
                 String redisKey = this.keyPrefix + cookieId;
                 if ("expose".equalsIgnoreCase(eventType)) {
-                    this.jedisCluster.zincrby(redisKey, 1, sku);
+                    this.jedisCluster.zincrby(redisKey, 1, spu);
                     this.jedisCluster.expire(redisKey, this.expireSeconds);
                 } else {
-                    this.jedisCluster.zadd(redisKey, -5, sku);
+                    this.jedisCluster.zadd(redisKey, -5, spu);
                     this.jedisCluster.expire(redisKey, this.expireSeconds);
                 }
 
