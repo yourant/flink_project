@@ -20,6 +20,7 @@
         <elasticsearch.version>5.6.4</elasticsearch.version>
         <lombok.version>1.18.8</lombok.version>
         <hutool.version>4.4.0</hutool.version>
+        <mongodb.version>3.1.1</mongodb.version>
     </properties>
     <dependencies>
         <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-java -->
@@ -27,7 +28,7 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-java</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+<!--            <scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
@@ -70,30 +71,32 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-api-java</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-api-java-bridge_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-api-scala-bridge_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-planner_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-planner-blink_2.11</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -101,19 +104,20 @@
             <artifactId>flink-table</artifactId>
             <version>${flink.version}</version>
             <type>pom</type>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-table-common</artifactId>
             <version>${flink.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-jdbc_2.11</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
@@ -149,6 +153,7 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-hbase_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
+            <scope>provided</scope>
             <exclusions>
                 <exclusion>
                     <groupId>commons-cli</groupId>
@@ -160,11 +165,13 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-orc_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-hadoop-compatibility_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
+            <!--<scope>provided</scope>-->
             <!--            <scope>provided</scope>-->
             <exclusions>
                 <exclusion>
@@ -178,7 +185,7 @@
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-mapreduce-client-core</artifactId>
             <version>2.8.1</version>
-            <!--            <scope>provided</scope>-->
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
@@ -189,13 +196,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>${slf4j.version}</version>
-            <!--            <scope>provided</scope>-->
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>${log4j.version}</version>
-            <!--            <scope>provided</scope>-->
+            <!--<scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>redis.clients</groupId>
@@ -207,7 +214,7 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kafka-0.11_2.11</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.alibaba</groupId>
@@ -215,19 +222,19 @@
             <version>1.2.47</version>
             <!--            <scope>provided</scope>-->
         </dependency>
-        <!--<dependency>-->
-        <!--<groupId>org.apache.bahir</groupId>-->
-        <!--<artifactId>flink-connector-redis_2.11</artifactId>-->
-        <!--<version>1.0</version>-->
-        <!--&lt;!&ndash;            <scope>provided</scope>&ndash;&gt;-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.apache.bahir</groupId>
+            <artifactId>flink-connector-redis_2.11</artifactId>
+            <version>1.0</version>
+            <scope>provided</scope>
+        </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.json4s/json4s-native -->
         <dependency>
             <groupId>org.json4s</groupId>
             <artifactId>json4s-native_2.12</artifactId>
             <version>3.6.4</version>
-            <!--            <scope>provided</scope>-->
+<!--            <scope>provided</scope>-->
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.json4s/json4s-jackson -->
         <dependency>
@@ -240,13 +247,13 @@
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-elasticsearch5_2.11</artifactId>
             <version>${flink.version}</version>
-            <!--            <scope>provided</scope>-->
+<!--            <scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
             <artifactId>transport</artifactId>
             <version>${elasticsearch.version}</version>
-            <!--            <scope>provided</scope>-->
+<!--            <scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>org.elasticsearch</groupId>
@@ -264,30 +271,39 @@
             <groupId>org.mongodb.mongo-hadoop</groupId>
             <artifactId>mongo-hadoop-core</artifactId>
             <version>1.5.1</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
             <version>4.5.3</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
             <version>${mysql.version}</version>
-            <!--            <scope>provided</scope>-->
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>druid</artifactId>
             <version>1.1.10</version>
+            <scope>provided</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>
-            <!--            <scope>provided</scope>-->
+<!--            <scope>provided</scope>-->
+        </dependency>
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>${hutool.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -295,14 +311,25 @@
             <artifactId>json-lib</artifactId>
             <version>2.4</version>
             <classifier>jdk15</classifier>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-all</artifactId>
             <version>${hutool.version}</version>
+            <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-connector-rabbitmq_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver</artifactId>
+            <version>${mongodb.version}</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

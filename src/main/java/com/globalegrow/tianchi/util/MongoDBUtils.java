@@ -29,11 +29,11 @@ public class MongoDBUtils {
     public static MongoClient getClient(String db) {
 
         //测试连接mongodb,不要用户名密码
-        //MongoClient mongoClient = new MongoClient("172.31.27.16", 27017);
-        MongoClient mongoClient = new MongoClient("34.236.225.15", 27017);
-        return mongoClient;
+        // MongoClient mongoClient = new MongoClient("172.31.27.16", 27017);
+        // MongoClient mongoClient = new MongoClient("34.236.225.15", 27017);
+        // return mongoClient;
 
-       /* Properties pro = PropertiesUtil.loadProperties("config.properties");
+        Properties pro = PropertiesUtil.loadProperties("config.properties");
         String mongoDBAddrs = pro.getProperty("mongodb.addr.prod");
         String username = pro.getProperty("mongodb.user.prod");
         String password = pro.getProperty("mongodb.password.prod");
@@ -56,7 +56,7 @@ public class MongoDBUtils {
         credentials.add(credential);
 
         //通过连接认证获取MongoDB连接
-        return new MongoClient(addrs, credentials);*/
+        return new MongoClient(addrs, credentials);
 
     }
 
@@ -114,7 +114,8 @@ public class MongoDBUtils {
     public static void dropCollection(MongoClient mongoClient, String db, String tableName) {
         MongoDatabase mongoDb = mongoClient.getDatabase(db);
         MongoCollection mongoCollection = mongoDb.getCollection(tableName);
-        mongoCollection.drop();
+        //生产不能用drop方法
+        mongoCollection.deleteMany(new Document());
     }
 
     /**
@@ -124,7 +125,7 @@ public class MongoDBUtils {
      * @param db            库
      * @param userInfoTable 表
      * @param queryList     要查询的列表
-     * @return
+     * @return 文档集合
      */
     public static FindIterable findDocsBy(MongoClient client, String db, String userInfoTable, BasicDBList queryList) {
 
@@ -135,9 +136,8 @@ public class MongoDBUtils {
         BasicDBObject queryCondition = new BasicDBObject();
         BasicDBObject in = new BasicDBObject("$in", queryList);
         queryCondition.put("user_id", in);
-        FindIterable docList = mongoCollection.find(queryCondition);
 
-        return docList;
+        return mongoCollection.find(queryCondition);
 
 
     }
