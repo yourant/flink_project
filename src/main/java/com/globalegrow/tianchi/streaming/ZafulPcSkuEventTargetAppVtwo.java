@@ -19,6 +19,7 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.*;
+import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -32,6 +33,7 @@ import org.apache.flink.streaming.connectors.elasticsearch.ElasticsearchSinkFunc
 import org.apache.flink.streaming.connectors.elasticsearch.RequestIndexer;
 import org.apache.flink.streaming.connectors.elasticsearch5.ElasticsearchSink;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011;
+import org.apache.flink.table.expressions.E;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.elasticsearch.action.index.IndexRequest;
@@ -51,33 +53,51 @@ public class ZafulPcSkuEventTargetAppVtwo {
 
     public static void main(String[] args) throws Exception{
 
+        ParameterTool parameterTool = ParameterTool.fromArgs(args);
+
+        //并行度
+        String parallelism = parameterTool.getRequired("parallelism");
+
+        //checkpoit
+        String checkpoit = parameterTool.getRequired("checkpoit");
+
         //获取执行环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        //设置全局并行度
+        env.setParallelism(Integer.valueOf(parallelism));
+
+        //设置checkpoit
+        env.enableCheckpointing(Long.valueOf(checkpoit));
 
         //设置EventTime为事件事件
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        //设置全局并发数
-        env.setParallelism(5);
-
         //获取kafka DataSource
         Properties props = new Properties();
 
-        props.setProperty("bootstrap.servers", "172.31.35.194:9092,172.31.50.250:9092,172.31.63.112:9092");
-        props.setProperty("group.id", "zaful_pc_userinfo");
+        props.setProperty("bootstrap.servers", parameterTool.getRequired("bootstrap.servers"));
+        props.setProperty("group.id", parameterTool.getRequired("group.id"));
 
         //初始化kafka自定义DataSource
         FlinkKafkaConsumer011<String> flinkKafkaConsumer011 =
-                new FlinkKafkaConsumer011<>("glbg-analitic-zaful-pc", new SimpleStringSchema(), props);
+                new FlinkKafkaConsumer011<>(parameterTool.getRequired("pc.topic"), new SimpleStringSchema(), props);
+        Boolean startFromEarliest = parameterTool.getBoolean("startFromEarliest", false);
+        if (startFromEarliest) {
+            flinkKafkaConsumer011.setStartFromEarliest();
+        }
 
         FlinkKafkaConsumer011<String> phpKafkaSource =
-                new FlinkKafkaConsumer011<>("glbg-analitic-zaful-php", new SimpleStringSchema(), props);
+                new FlinkKafkaConsumer011<>(parameterTool.getRequired("php.topic"), new SimpleStringSchema(), props);
+        if (startFromEarliest) {
+            phpKafkaSource.setStartFromEarliest();
+        }
 
         //获取kafka数据
-        DataStreamSource<String> streamPCData = env.addSource(flinkKafkaConsumer011);
+        DataStream<String> streamPCData = env.addSource(flinkKafkaConsumer011).shuffle();
 
         //获取kafka数据
-        DataStreamSource<String> streamPHPData = env.addSource(phpKafkaSource);
+        DataStream<String> streamPHPData = env.addSource(phpKafkaSource).shuffle();
 
         OutputTag<PcEventBehahvior> lateDataTag = new OutputTag<PcEventBehahvior>("late"){};
 
@@ -90,8 +110,6 @@ public class ZafulPcSkuEventTargetAppVtwo {
         //将统计结果sink到ES
         Map<String, String> config = new HashMap<>();
         config.put("cluster.name", "esearch-aws-dy");
-        // This instructs the sink to emit after every element, otherwise they would be buffered
-        config.put("bulk.flush.max.actions", "1");
 
         List<InetSocketAddress> transportAddresses = new ArrayList<>();
         transportAddresses.add(new InetSocketAddress(InetAddress.getByName("172.31.47.84"), 9302));
@@ -117,7 +135,7 @@ public class ZafulPcSkuEventTargetAppVtwo {
                     public void process(PCTargetResultCount element, RuntimeContext ctx, RequestIndexer indexer) {
                         indexer.add(createIndexRequest(element));
                     }
-                }));
+                })).name("zaful_pcm_target_sink_es");
 
         lateData.addSink(new ElasticsearchSink(config, transportAddresses,
                 new ElasticsearchSinkFunction<PcEventBehahvior>() {
@@ -137,9 +155,9 @@ public class ZafulPcSkuEventTargetAppVtwo {
                     public void process(PcEventBehahvior element, RuntimeContext ctx, RequestIndexer indexer) {
                         indexer.add(createIndexRequest(element));
                     }
-                }));
+                })).name("zaful_pcm_target_late_data_sink_es");
 
-        env.execute("ZafulPcSkuEventTargetAppVtwo");
+        env.execute("ZafulPcSkuEventTargetAppVtwo" + System.currentTimeMillis());
     }
 
     /**
@@ -148,27 +166,33 @@ public class ZafulPcSkuEventTargetAppVtwo {
      * @param streamPHPData
      * @return
      */
-    public static SingleOutputStreamOperator<PCTargetResultCount> targetCount(DataStreamSource<String> streamPCData,
-                                                                              DataStreamSource<String> streamPHPData,
+    public static SingleOutputStreamOperator<PCTargetResultCount> targetCount(DataStream<String> streamPCData,
+                                                                              DataStream<String> streamPHPData,
                                                                               OutputTag<PcEventBehahvior> lateDataTag){
         //处理zaful pc端数据
         DataStream<PcEventBehahvior> pcResultStream = streamPCData
                 .map(new MapFunction<String, PCLogModel>() { //解析kafka json字符串为PCLogModel对象
                     @Override
                     public PCLogModel map(String value) throws Exception {
+                        PCLogModel pcLogModel = null;
 
-                        PCLogModel pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        try {
+
+                            pcLogModel = PCFieldsUtils.getPCLogModel(value);
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
 
                         return pcLogModel;
                     }
-                })
-                .filter(new ZafulPCFilterFunction()) //过滤掉不需要的数据
-                .flatMap(new ZafulPcTargetFlatMapFunction()); //取需要的事件数据
+                }).uid("zaful_pc_map")
+                .filter(new ZafulPCFilterFunction()).uid("zaful_pc_filter") //过滤掉不需要的数据
+                .flatMap(new ZafulPcTargetFlatMapFunction()).uid("zaful_pc_flatmap"); //取需要的事件数据
 
         //处理php数据
         DataStream<PcEventBehahvior> phpResultStream = streamPHPData
-                .filter(new PHPFilterFunction())
-                .flatMap(new PhpTargetFlatMapFunction());
+                .filter(new PHPFilterFunction()).uid("zaful_php_filter")
+                .flatMap(new PhpTargetFlatMapFunction()).uid("zaful_hph_flatmap");
 
         //合并Stream并进行聚合操作
         SingleOutputStreamOperator<PCTargetResultCount> resultStream = pcResultStream.union(phpResultStream)
@@ -178,12 +202,12 @@ public class ZafulPcSkuEventTargetAppVtwo {
                     public long extractAscendingTimestamp(PcEventBehahvior element) {
                         return element.getTimeStamp() * 1000;
                     }
-                })
+                }).uid("target_zaful_pcm_window")
                 .keyBy("eventType","sku","platform","countryCode")
                 .timeWindow(Time.minutes(60))
                 .allowedLateness(Time.seconds(10))
                 .sideOutputLateData(lateDataTag)
-                .aggregate(new CountAgg(), new WindowResultFunction());
+                .aggregate(new CountAgg(), new WindowResultFunction()).uid("target_zaful_pcm_aggregate");
 
         return resultStream;
     }

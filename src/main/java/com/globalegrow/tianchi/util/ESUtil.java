@@ -35,7 +35,7 @@ public class ESUtil {
 //        }
 
         ESUtil.httpCreateIndex("100.26.74.93", "9202",
-                "zaful_target_late_event_realtime",3,1);
+                "zaful_app_monitor_event_realtime",3,1);
     }
 
     /**
